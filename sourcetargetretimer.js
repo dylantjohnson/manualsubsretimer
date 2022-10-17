@@ -44,11 +44,19 @@ class SourceTargetRetimer extends HTMLElement {
 		const targetText = targetEvent ? targetEvent.Text : '---';
 
 		const targetStartOffset = targetEvent && sourceEvent
-			? this.differenceDisplayOf(targetEvent.Start, sourceEvent.Start)
+			? this.differenceDisplayOf(
+				!targetEvent.NewStart
+					? targetEvent.Start
+					: targetEvent.NewStart,
+				sourceEvent.Start)
 			: '---';
 
 		const targetEndOffset = targetEvent && sourceEvent
-			? this.differenceDisplayOf(targetEvent.End, sourceEvent.End)
+			? this.differenceDisplayOf(
+				!targetEvent.NewEnd
+					? targetEvent.End
+					: targetEvent.NewEnd,
+				sourceEvent.End)
 			: '---';
 
 		const prevTargetIsEnabled = this.state.targetIndex !== null
@@ -67,6 +75,10 @@ class SourceTargetRetimer extends HTMLElement {
 			&& this.state.sourceIndex < (
 				this.state.sourceDialogue.events.length - 1);
 
+		const alignIsEnabled = targetEvent && sourceEvent;
+
+		const exportIsEnabled = targetEvent !== null;
+
 		this.shadowRoot.innerHTML = `
 <p>${this.htmlFor(targetText)}</p>
 <div>
@@ -81,6 +93,13 @@ class SourceTargetRetimer extends HTMLElement {
 <div>
 	<button${prevSourceIsEnabled ? '' : ' disabled'}>Previous</button>
 	<button${nextSourceIsEnabled ? '' : ' disabled'}>Next</button>
+</div>
+<div>
+	<button${alignIsEnabled ? '' : ' disabled'}>Align Start</button>
+	<button${alignIsEnabled ? '' : ' disabled'}>Align End</button>
+</div>
+<div>
+	<button${exportIsEnabled ? '' : ' disabled'}>Export</button>
 </div>`;
 
 		if (this.prevTargetButton) {
@@ -100,6 +119,18 @@ class SourceTargetRetimer extends HTMLElement {
 		if (this.nextSourceButton) {
 			this.nextSourceButton.onclick = this.onNextSourceClicked.bind(this);
 		}
+
+		if (this.alignStartButton) {
+			this.alignStartButton.onclick = this.onAlignStartClicked.bind(this);
+		}
+
+		if (this.alignEndButton) {
+			this.alignEndButton.onclick = this.onAlignEndClicked.bind(this);
+		}
+
+		if (this.exportButton) {
+			this.exportButton.onclick = this.onExportButtonClicked.bind(this);
+		}
 	}
 
 	get prevTargetButton() {
@@ -116,6 +147,25 @@ class SourceTargetRetimer extends HTMLElement {
 
 	get nextSourceButton() {
 		return this.shadowRoot.querySelectorAll('button')[3];
+	}
+
+	get alignStartButton() {
+		return this.shadowRoot.querySelectorAll('button')[4];
+	}
+
+	get alignEndButton() {
+		return this.shadowRoot.querySelectorAll('button')[5];
+	}
+
+	get exportButton() {
+		return this.shadowRoot.querySelectorAll('button')[6];
+	}
+
+	htmlFor(text) {
+		return text
+			.replace(/&/g, '&amp;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;');
 	}
 
 	processSourceFileData() {
@@ -202,11 +252,65 @@ class SourceTargetRetimer extends HTMLElement {
 		});
 	}
 
-	htmlFor(text) {
-		return text
-			.replace(/&/g, '&amp;')
-			.replace(/</g, '&lt;')
-			.replace(/>/g, '&gt;');
+	onAlignStartClicked() {
+		const targetEvent =
+			this.state.targetDialogue.events[this.state.targetIndex];
+		const sourceEvent =
+			this.state.sourceDialogue.events[this.state.sourceIndex];
+		targetEvent.NewStart = sourceEvent.Start;
+		this.render();
+	}
+
+	onAlignEndClicked() {
+		const targetEvent =
+			this.state.targetDialogue.events[this.state.targetIndex];
+		const sourceEvent =
+			this.state.sourceDialogue.events[this.state.sourceIndex];
+		targetEvent.NewEnd = sourceEvent.End;
+		this.render();
+	}
+
+	onExportButtonClicked() {
+		let newData = this.state.targetFileData;
+		for (const event of this.state.targetDialogue.events) {
+			newData = newData.replace(this.originalStringFrom(event),
+				this.updatedStringFrom(event));
+		}
+		const blob = new Blob([newData], { type: 'text/plain;charset=utf-8;' });
+		const url = URL.createObjectURL(blob);
+		const link = document.createElement('a');
+		link.setAttribute('href', url);
+		link.setAttribute('download', 'retimed-subs.ass');
+		link.click();
+		URL.revokeObjectURL(url);
+	}
+
+	originalStringFrom(event) {
+		let result = `${event.Format}: `;
+		for (const key of this.state.targetDialogue.properties.slice(1)) {
+			result += event[key]
+			if (key !== 'Text') {
+				result += ','
+			}
+		}
+		return result;
+	}
+
+	updatedStringFrom(event) {
+		let result = `${event.Format}: `;
+		for (const key of this.state.targetDialogue.properties.slice(1)) {
+			if (key === 'Start' && event.NewStart) {
+				result += event.NewStart;
+			} else if (key === 'End' && event.NewEnd) {
+				result += event.NewEnd;
+			} else {
+				result += event[key]
+			}
+			if (key !== 'Text') {
+				result += ','
+			}
+		}
+		return result;
 	}
 }
 
