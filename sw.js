@@ -1,7 +1,7 @@
 // Sample service worker from Microsoft:
 // https://learn.microsoft.com/en-us/microsoft-edge/progressive-web-apps-chromium/how-to/
 
-const CACHE_NAME = `manual-subs-retimer-cache-v1`;
+const CACHE_NAME = `manual-subs-retimer-cache-v2`;
 
 // Use the install event to pre-cache all initial resources.
 self.addEventListener('install', event => {

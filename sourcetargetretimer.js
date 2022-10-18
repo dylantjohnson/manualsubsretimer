@@ -41,7 +41,11 @@ class SourceTargetRetimer extends HTMLElement {
 			? this.state.sourceDialogue.events[this.state.sourceIndex]
 			: null;
 
-		const targetText = targetEvent ? targetEvent.Text : '---';
+		const targetText = targetEvent
+			? targetEvent.IsDeleted
+				? `DELETED: ${targetEvent.Text}`
+				: targetEvent.Text
+			: '---';
 
 		const targetStartOffset = targetEvent && sourceEvent
 			? this.differenceDisplayOf(
@@ -77,6 +81,8 @@ class SourceTargetRetimer extends HTMLElement {
 
 		const alignIsEnabled = targetEvent && sourceEvent;
 
+		const deleteIsEnabled = targetEvent !== null;
+
 		const exportIsEnabled = targetEvent !== null;
 
 		this.shadowRoot.innerHTML = `
@@ -97,6 +103,7 @@ class SourceTargetRetimer extends HTMLElement {
 <div>
 	<button${alignIsEnabled ? '' : ' disabled'}>Align Start</button>
 	<button${alignIsEnabled ? '' : ' disabled'}>Align End</button>
+	<button${deleteIsEnabled ? '' : ' disabled'}>Delete</button>
 </div>
 <div>
 	<button${exportIsEnabled ? '' : ' disabled'}>Export</button>
@@ -128,6 +135,10 @@ class SourceTargetRetimer extends HTMLElement {
 			this.alignEndButton.onclick = this.onAlignEndClicked.bind(this);
 		}
 
+		if (this.deleteButton) {
+			this.deleteButton.onclick = this.onDeleteClicked.bind(this);
+		}
+
 		if (this.exportButton) {
 			this.exportButton.onclick = this.onExportButtonClicked.bind(this);
 		}
@@ -157,8 +168,12 @@ class SourceTargetRetimer extends HTMLElement {
 		return this.shadowRoot.querySelectorAll('button')[5];
 	}
 
-	get exportButton() {
+	get deleteButton() {
 		return this.shadowRoot.querySelectorAll('button')[6];
+	}
+
+	get exportButton() {
+		return this.shadowRoot.querySelectorAll('button')[7];
 	}
 
 	htmlFor(text) {
@@ -270,11 +285,22 @@ class SourceTargetRetimer extends HTMLElement {
 		this.render();
 	}
 
+	onDeleteClicked() {
+		const targetEvent =
+			this.state.targetDialogue.events[this.state.targetIndex];
+		if (!targetEvent.IsDeleted) {
+			targetEvent.IsDeleted = true;
+		} else {
+			targetEvent.IsDeleted = false;
+		}
+		this.render();
+	}
+
 	onExportButtonClicked() {
 		let newData = this.state.targetFileData;
 		for (const event of this.state.targetDialogue.events) {
-			newData = newData.replace(this.originalStringFrom(event),
-				this.updatedStringFrom(event));
+			newData = newData.replace(this.originalLineFrom(event),
+				this.updatedLineFrom(event));
 		}
 		const blob = new Blob([newData], { type: 'text/plain;charset=utf-8;' });
 		const url = URL.createObjectURL(blob);
@@ -285,7 +311,7 @@ class SourceTargetRetimer extends HTMLElement {
 		URL.revokeObjectURL(url);
 	}
 
-	originalStringFrom(event) {
+	originalLineFrom(event) {
 		let result = `${event.Format}: `;
 		for (const key of this.state.targetDialogue.properties.slice(1)) {
 			result += event[key]
@@ -293,10 +319,14 @@ class SourceTargetRetimer extends HTMLElement {
 				result += ','
 			}
 		}
-		return result;
+		//TODO(dylan): handle non-windows line ends
+		return result + '\r\n';
 	}
 
-	updatedStringFrom(event) {
+	updatedLineFrom(event) {
+		if (event.IsDeleted) {
+			return '';
+		}
 		let result = `${event.Format}: `;
 		for (const key of this.state.targetDialogue.properties.slice(1)) {
 			if (key === 'Start' && event.NewStart) {
@@ -310,7 +340,8 @@ class SourceTargetRetimer extends HTMLElement {
 				result += ','
 			}
 		}
-		return result;
+		//TODO(dylan): handle non-windows line ends
+		return result + '\r\n';
 	}
 }
 
